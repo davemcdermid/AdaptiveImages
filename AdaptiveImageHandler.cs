@@ -72,7 +72,7 @@ namespace AdaptiveImages
 			}
 		}
 
-		//Switch off mobile-first if browser is identifying as desktop
+		/// <summary>Switch off mobile-first if browser is identifying as desktop</summary>
 		private bool BrowserDetect(HttpContext context)
 		{
 			string userAgent = context.Request.UserAgent.ToLower();
@@ -92,23 +92,23 @@ namespace AdaptiveImages
 			context.Response.TransmitFile(filename);
 		}
 
-		/// <summary>Sends an imaeg to the client with the specified message</summary>
+		/// <summary>Sends an image to the client with the specified message</summary>
 		private void SendErrorImage(HttpContext context, string message)
 		{
-			Bitmap objBmpImage = new Bitmap(800, 200);
-			Font objFont = new Font("Arial", 20, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Pixel);
-			Graphics objGraphics = Graphics.FromImage(objBmpImage);
-			objGraphics = Graphics.FromImage(objBmpImage);
-			objGraphics.Clear(Color.White);
-			objGraphics.SmoothingMode = SmoothingMode.AntiAlias;
-			objGraphics.TextRenderingHint = TextRenderingHint.AntiAlias;
-			objGraphics.DrawString(message, objFont, new SolidBrush(Color.FromArgb(102, 102, 102)), 0, 0);
-			objGraphics.Flush();
-
-			context.Response.ContentType = "image/jpeg";
-			context.Response.Cache.SetCacheability(HttpCacheability.NoCache);
-			context.Response.Expires = -1;
-			objBmpImage.Save(context.Response.OutputStream, ImageFormat.Jpeg);
+			using (Bitmap error_image = new Bitmap(800, 200)) {
+				Font font = new Font("Arial", 20, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Pixel);
+				using (Graphics graphics = Graphics.FromImage(error_image)) {
+					graphics.Clear(Color.White);
+					graphics.SmoothingMode = SmoothingMode.AntiAlias;
+					graphics.TextRenderingHint = TextRenderingHint.AntiAlias;
+					graphics.DrawString(message, font, new SolidBrush(Color.FromArgb(102, 102, 102)), 0, 0);
+					graphics.Flush();
+				}
+				context.Response.ContentType = "image/jpeg";
+				context.Response.Cache.SetCacheability(HttpCacheability.NoCache);
+				context.Response.Expires = -1;
+				error_image.Save(context.Response.OutputStream, ImageFormat.Jpeg);
+			}
 		}
 
 		/// <summary>Deletes the cache_file if older than source_file</summary>
@@ -145,14 +145,16 @@ namespace AdaptiveImages
 				int new_height = (int)Math.Ceiling(new_width * ratio);
 
 				using (Image scaled_image = new Bitmap(new_width, new_height)) {
-					Graphics graphic = Graphics.FromImage(scaled_image);
-					//Set interpolation mode, otherwise it looks rubbish.
-					graphic.InterpolationMode = InterpolationMode.HighQualityBicubic;
-					graphic.SmoothingMode = SmoothingMode.HighQuality;
-					graphic.PixelOffsetMode = PixelOffsetMode.HighQuality;
-					graphic.CompositingQuality = CompositingQuality.HighQuality;
-					//Draw the original image as a scaled image
-					graphic.DrawImage(source_image, new Rectangle(0, 0, new_width, new_height), new RectangleF(0, 0, width, height), GraphicsUnit.Pixel);
+					using (Graphics graphics = Graphics.FromImage(scaled_image)) {
+						//Set interpolation mode, otherwise it looks rubbish.
+						graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+						graphics.SmoothingMode = SmoothingMode.HighQuality;
+						graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+						graphics.CompositingQuality = CompositingQuality.HighQuality;
+						//Draw the original image as a scaled image
+						graphics.DrawImage(source_image, new Rectangle(0, 0, new_width, new_height), new RectangleF(0, 0, width, height), GraphicsUnit.Pixel);
+						graphics.Flush();
+					}
 					//create cache directory if it doesn't exist
 					if (!Directory.Exists(Path.GetDirectoryName(cache_file)))
 						Directory.CreateDirectory(Path.GetDirectoryName(cache_file));
@@ -175,6 +177,7 @@ namespace AdaptiveImages
 			return cache_file;
 		}
 
+		/// <summary>Return the ImageCodecInfo for a given mime-type</summary>
 		private ImageCodecInfo GetEncoderForMimeType(string mimeType)
 		{
 			return ImageCodecInfo.GetImageEncoders().FirstOrDefault(e => string.Compare(e.MimeType, mimeType, true) == 0);
