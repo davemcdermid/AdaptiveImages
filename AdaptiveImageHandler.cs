@@ -7,21 +7,43 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.Drawing.Imaging;
+using System.Configuration;
 
 namespace AdaptiveImages
 {
 	class AdaptiveImageHandler : IHttpHandler
 	{
-		private static int[] resolutions = { 1382, 992, 768, 480 }; // the resolution break-points to use (screen widths, in pixels)
-		private static string cache_path = "ai-cache"; // where to store the generated re-sized images. This folder must be writable.
-		private static long jpg_quality = 80L; // the quality of any generated JPGs on a scale of 0 to 100
-		private static bool watch_cache = true; // check that the responsive image isn't stale (ensures updated source images are re-cached)
-		private static int browser_cache = 60 * 60 * 24 * 7; // How long the BROWSER cache should last (seconds, minutes, hours, days. 7days by default)
-		private static bool mobile_first = true; // If there's no cookie FALSE sends the largest var resolutions version (TRUE sends smallest)
-		private static string cookie_name = "resolution"; // the name of the cookie containing the resolution value
+		private int[] resolutions = { 1382, 992, 768, 480 }; // the resolution break-points to use (screen widths, in pixels)
+		private string cache_path = "ai-cache"; // where to store the generated re-sized images. This folder must be writable.
+		private long jpg_quality = 80L; // the quality of any generated JPGs on a scale of 0 to 100
+		private bool watch_cache = true; // check that the responsive image isn't stale (ensures updated source images are re-cached)
+		private int browser_cache = 60 * 60 * 24 * 7; // How long the BROWSER cache should last (seconds, minutes, hours, days. 7days by default)
+		private bool mobile_first = true; // If there's no cookie FALSE sends the largest var resolutions version (TRUE sends smallest)
+		private string cookie_name = "resolution"; // the name of the cookie containing the resolution value
 
 		private static string[] desktop_oss = { "macintosh", "x11", "windows nt" };
 		private static string[] image_exts = { ".png", ".gif", ".jpeg" };
+
+		public AdaptiveImageHandler()
+		{
+			if (!string.IsNullOrEmpty(ConfigurationManager.AppSettings["AdaptiveImages.ResolutionBreakPoints"])) {
+				int[] parsed_resolutions = ConfigurationManager.AppSettings["AdaptiveImages.ResolutionBreakPoints"].Split(',').Select(e => int.Parse(e)).ToArray();
+				if (parsed_resolutions.Length > 0)
+					resolutions = parsed_resolutions;
+			}
+			if (!string.IsNullOrEmpty(ConfigurationManager.AppSettings["AdaptiveImages.CachePath"]))
+				cache_path = ConfigurationManager.AppSettings["AdaptiveImages.CachePath"];
+			if (!string.IsNullOrEmpty(ConfigurationManager.AppSettings["AdaptiveImages.JpegQuality"]))
+				Int64.TryParse(ConfigurationManager.AppSettings["AdaptiveImages.JpegQuality"], out jpg_quality);
+			if (!string.IsNullOrEmpty(ConfigurationManager.AppSettings["AdaptiveImages.WatchCache"]))
+				watch_cache = string.Compare(ConfigurationManager.AppSettings["AdaptiveImages.WatchCache"], "true", true) == 0;
+			if (!string.IsNullOrEmpty(ConfigurationManager.AppSettings["AdaptiveImages.BrowserCache"]))
+				int.TryParse(ConfigurationManager.AppSettings["AdaptiveImages.BrowserCache"], out browser_cache);
+			if (!string.IsNullOrEmpty(ConfigurationManager.AppSettings["AdaptiveImages.MobileFirst"]))
+				mobile_first = string.Compare(ConfigurationManager.AppSettings["AdaptiveImages.MobileFirst"], "true", true) == 0;
+			if (!string.IsNullOrEmpty(ConfigurationManager.AppSettings["AdaptiveImages.CookieName"]))
+				cookie_name = ConfigurationManager.AppSettings["AdaptiveImages.CookieName"];
+		}
 
 		public bool IsReusable
 		{
