@@ -21,6 +21,9 @@ namespace AdaptiveImages
 		private int browser_cache = 60 * 60 * 24 * 7; // How long the BROWSER cache should last (seconds, minutes, hours, days. 7days by default)
 		private bool mobile_first = true; // If there's no cookie FALSE sends the largest var resolutions version (TRUE sends smallest)
 		private string cookie_name = "resolution"; // the name of the cookie containing the resolution value
+		private string regex_filter = ".*"; // a regex filter to determine what images to adapt and which to ignore. 
+											// Note that backslashes DO need to be escaped in code (ex. "\d" should be written "\\d")
+		private bool use_filter = false;  // Should we use the regex filter? If false, processes all images.
 
 		private static string[] desktop_oss = { "macintosh", "x11", "windows nt" };
 		private static string[] image_exts = { ".png", ".gif", ".jpeg" };
@@ -46,6 +49,10 @@ namespace AdaptiveImages
 				cookie_name = ConfigurationManager.AppSettings["AdaptiveImages.CookieName"];
 			if (!string.IsNullOrEmpty(ConfigurationManager.AppSettings["AdaptiveImages.DefaultRaw"]))
 				default_raw = string.Compare(ConfigurationManager.AppSettings["AdaptiveImages.DefaultRaw"], "true", true) == 0;
+			if (!string.IsNullOrEmpty(ConfigurationManager.AppSettings["AdaptiveImages.RegexFilter"]))
+				regex_filter = ConfigurationManager.AppSettings["AdaptiveImages.RegexFilter"];
+			if (!string.IsNullOrEmpty(ConfigurationManager.AppSettings["AdaptiveImages.UseFilter"]))
+				use_filter = string.Compare(ConfigurationManager.AppSettings["AdaptiveImages.UseFilter"], "true", true) == 0;
 		}
 
 		public bool IsReusable
@@ -64,6 +71,15 @@ namespace AdaptiveImages
 			if (!File.Exists(source_file)) { 
 				SendErrorImage(context, "Image not found");
 				return;
+			}
+
+			//check if we should ignore this image
+			if (use_filter) {
+				if(!System.Text.RegularExpressions.Regex.IsMatch(source_file, regex_filter)) { 
+					SendImage(context, source_file, browser_cache);
+					return;
+				}
+
 			}
 
 			//look for cookie identifying resolution
