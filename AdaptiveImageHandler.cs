@@ -14,12 +14,16 @@ namespace AdaptiveImages
 	class AdaptiveImageHandler : IHttpHandler
 	{
 		private int[] resolutions = { 1382, 992, 768, 480 }; // the resolution break-points to use (screen widths, in pixels)
+		private bool default_raw = false; // If the resolution is larger than the largest break-point, should we sent the raw image?
 		private string cache_path = "ai-cache"; // where to store the generated re-sized images. This folder must be writable.
 		private long jpg_quality = 80L; // the quality of any generated JPGs on a scale of 0 to 100
 		private bool watch_cache = true; // check that the responsive image isn't stale (ensures updated source images are re-cached)
 		private int browser_cache = 60 * 60 * 24 * 7; // How long the BROWSER cache should last (seconds, minutes, hours, days. 7days by default)
 		private bool mobile_first = true; // If there's no cookie FALSE sends the largest var resolutions version (TRUE sends smallest)
 		private string cookie_name = "resolution"; // the name of the cookie containing the resolution value
+		private string regex_filter = ".*"; // a regex filter to determine what images to adapt and which to ignore. 
+											// Note that backslashes DO need to be escaped in code (ex. "\d" should be written "\\d")
+		private bool use_filter = false;  // Should we use the regex filter? If false, processes all images.
 
 		private static string[] desktop_oss = { "macintosh", "x11", "windows nt" };
 		private static string[] image_exts = { ".png", ".gif", ".jpeg" };
@@ -43,6 +47,12 @@ namespace AdaptiveImages
 				mobile_first = string.Compare(ConfigurationManager.AppSettings["AdaptiveImages.MobileFirst"], "true", true) == 0;
 			if (!string.IsNullOrEmpty(ConfigurationManager.AppSettings["AdaptiveImages.CookieName"]))
 				cookie_name = ConfigurationManager.AppSettings["AdaptiveImages.CookieName"];
+			if (!string.IsNullOrEmpty(ConfigurationManager.AppSettings["AdaptiveImages.DefaultRaw"]))
+				default_raw = string.Compare(ConfigurationManager.AppSettings["AdaptiveImages.DefaultRaw"], "true", true) == 0;
+			if (!string.IsNullOrEmpty(ConfigurationManager.AppSettings["AdaptiveImages.RegexFilter"]))
+				regex_filter = ConfigurationManager.AppSettings["AdaptiveImages.RegexFilter"];
+			if (!string.IsNullOrEmpty(ConfigurationManager.AppSettings["AdaptiveImages.UseFilter"]))
+				use_filter = string.Compare(ConfigurationManager.AppSettings["AdaptiveImages.UseFilter"], "true", true) == 0;
 		}
 
 		public bool IsReusable
@@ -58,13 +68,30 @@ namespace AdaptiveImages
 			int resolution = 0;
 
 			//check source file exists
-			if (!File.Exists(source_file))
+			if (!File.Exists(source_file)) { 
 				SendErrorImage(context, "Image not found");
+				return;
+			}
+
+			//check if we should ignore this image
+			if (use_filter) {
+				if(!System.Text.RegularExpressions.Regex.IsMatch(source_file, regex_filter)) { 
+					SendImage(context, source_file, browser_cache);
+					return;
+				}
+
+			}
+
 			//look for cookie identifying resolution
 			if (context.Request.Cookies[cookie_name] != null) {
 				int client_width = 0;
 				if (int.TryParse(context.Request.Cookies[cookie_name].Value, out client_width)) {
 					resolution = resolutions.OrderBy(i => i).FirstOrDefault(break_point => client_width <= break_point);
+					//if resolution exceeds largest break-point, return raw image.
+					if(default_raw && client_width > resolution) { 
+						SendImage(context, source_file, browser_cache);
+						return;
+					}
 				} else {
 					//delete the mangled cookie
 					context.Response.Cookies[cookie_name].Value = string.Empty;
@@ -85,9 +112,11 @@ namespace AdaptiveImages
 					}
 					//send cached image
 					SendImage(context, cache_file, browser_cache);
+					return;
 				} else {
 					string file = GenerateImage(source_file, cache_file, resolution);
 					SendImage(context, file, browser_cache);
+					return;
 				}
 			} catch (Exception ex) { // send exception message as image
 				SendErrorImage(context, ex.Message);
