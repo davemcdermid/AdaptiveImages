@@ -61,15 +61,21 @@ namespace AdaptiveImages
 			int resolution = 0;
 
 			//check source file exists
-			if (!File.Exists(source_file))
+			if (!File.Exists(source_file)) { 
 				SendErrorImage(context, "Image not found");
+				return;
+			}
+
 			//look for cookie identifying resolution
 			if (context.Request.Cookies[cookie_name] != null) {
 				int client_width = 0;
 				if (int.TryParse(context.Request.Cookies[cookie_name].Value, out client_width)) {
 					resolution = resolutions.OrderBy(i => i).FirstOrDefault(break_point => client_width <= break_point);
-					if(default_raw && client_width > resolution)
+					//if resolution exceeds largest break-point, return raw image.
+					if(default_raw && client_width > resolution) { 
 						SendImage(context, source_file, browser_cache);
+						return;
+					}
 				} else {
 					//delete the mangled cookie
 					context.Response.Cookies[cookie_name].Value = string.Empty;
@@ -90,9 +96,11 @@ namespace AdaptiveImages
 					}
 					//send cached image
 					SendImage(context, cache_file, browser_cache);
+					return;
 				} else {
 					string file = GenerateImage(source_file, cache_file, resolution);
 					SendImage(context, file, browser_cache);
+					return;
 				}
 			} catch (Exception ex) { // send exception message as image
 				SendErrorImage(context, ex.Message);
